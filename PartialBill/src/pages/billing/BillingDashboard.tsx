@@ -44,16 +44,36 @@ import {
   Eye,
   Building2,
   CloudUpload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit,
+  Trash2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/contexts/NotificationContext";
+import NotificationDropdown from "@/components/NotificationDropdown";
+import { ContextAssistant } from "@/components/ContextAssistant";
+import { HelpNavigation } from "@/components/HelpNavigation";
+
+interface Bill {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  amount: number;
+  description: string;
+  date: string;
+  status: string;
+  uploaded_by: string;
+  file_path?: string;
+}
 
 const BillingDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isAddPatientDialogOpen, setIsAddPatientDialogOpen] = useState(false);
+  const [isEditPatientDialogOpen, setIsEditPatientDialogOpen] = useState(false);
+  const [isEditBillDialogOpen, setIsEditBillDialogOpen] = useState(false);
   const [isViewPatientDialogOpen, setIsViewPatientDialogOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patients, setPatients] = useState([]);
@@ -74,8 +94,26 @@ const BillingDashboard = () => {
     admissionDate: "",
     room: ""
   });
+  const [editForm, setEditForm] = useState({
+    id: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    patientId: "",
+    admissionDate: "",
+    room: "",
+    status: ""
+  });
+  const [editBillForm, setEditBillForm] = useState({
+    id: "",
+    description: "",
+    amount: "",
+    status: ""
+  });
   const [backupLoading, setBackupLoading] = useState(false);
   const { toast } = useToast();
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     fetchPatients();
@@ -149,6 +187,10 @@ const BillingDashboard = () => {
           title: "Success",
           description: "Bill uploaded successfully.",
         });
+        addNotification(
+          `New bill uploaded for patient ${uploadForm.patientId}. Amount: ₱${uploadForm.amount}`,
+          'success'
+        );
         setIsUploadDialogOpen(false);
         setUploadForm({ patientId: "", description: "", amount: "", file: null });
         fetchBills(); // Refresh bills list
@@ -189,6 +231,10 @@ const BillingDashboard = () => {
           title: "Success",
           description: "Patient added successfully.",
         });
+        addNotification(
+          `New patient ${patientForm.firstName} ${patientForm.lastName} added to the system.`,
+          'info'
+        );
         setIsAddPatientDialogOpen(false);
         setPatientForm({ firstName: "", lastName: "", email: "", phone: "", patientId: "", admissionDate: "", room: "" });
         fetchPatients(); // Refresh patients list
@@ -210,6 +256,172 @@ const BillingDashboard = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleEditPatient = async () => {
+    if (!editForm.firstName || !editForm.lastName || !editForm.email || !editForm.phone || !editForm.patientId || !editForm.admissionDate || !editForm.room) {
+      toast({
+        title: "Error",
+        description: "Please fill all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/patients/${editForm.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Patient updated successfully.",
+        });
+        addNotification(
+          `Patient ${editForm.firstName} ${editForm.lastName} information has been updated.`,
+          'info'
+        );
+        setIsEditPatientDialogOpen(false);
+        fetchPatients();
+      } else {
+        let errorMessage = 'Failed to update patient';
+        try {
+          const error = await response.json();
+          errorMessage = error.message || error.error || errorMessage;
+        } catch (e) {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update patient. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeletePatient = async (patientId) => {
+    if (!confirm('Are you sure you want to delete this patient? This action cannot be undone.')) return;
+
+    try {
+      const response = await fetch(`/api/patients/${patientId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Patient deleted successfully.",
+        });
+        fetchPatients();
+      } else {
+        throw new Error('Delete failed');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete patient. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const openEditDialog = (patient) => {
+    setEditForm({
+      id: patient.id,
+      firstName: patient.first_name || patient.name.split(' ')[0],
+      lastName: patient.last_name || patient.name.split(' ')[1] || '',
+      email: patient.email,
+      phone: patient.phone,
+      patientId: patient.patient_id,
+      admissionDate: patient.admission_date,
+      room: patient.room,
+      status: patient.status
+    });
+    setIsEditPatientDialogOpen(true);
+  };
+
+  const handleEditBill = async () => {
+    if (!editBillForm.description || !editBillForm.amount) {
+      toast({
+        title: "Error",
+        description: "Please fill all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/bills/${editBillForm.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editBillForm)
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Bill updated successfully.",
+        });
+        setIsEditBillDialogOpen(false);
+        fetchBills();
+        fetchPatients();
+      } else {
+        throw new Error('Update failed');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update bill. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteBill = async (billId) => {
+    if (!confirm('Are you sure you want to delete this bill? This action cannot be undone.')) return;
+
+    try {
+      const response = await fetch(`/api/bills/${billId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Bill deleted successfully.",
+        });
+        fetchBills();
+        fetchPatients();
+      } else {
+        throw new Error('Delete failed');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete bill. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const openEditBillDialog = (bill) => {
+    setEditBillForm({
+      id: bill.id,
+      description: bill.description,
+      amount: bill.amount.toString(),
+      status: bill.status
+    });
+    setIsEditBillDialogOpen(true);
   };
 
   const filteredPatients = patients.filter(patient =>
@@ -267,6 +479,49 @@ const BillingDashboard = () => {
     setBackupLoading(false);
   };
 
+  const downloadAllBills = (bills: Bill[]) => {
+    if (bills.length === 0) {
+      toast({
+        title: "No Bills",
+        description: "There are no bills to download.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['Bill ID', 'Patient ID', 'Patient Name', 'Date', 'Description', 'Amount', 'Status', 'Uploaded By'];
+    const csvContent = [
+      headers.join(','),
+      ...bills.map(bill => [
+        `BILL-${bill.id.toString().padStart(3, '0')}`,
+        bill.patient_id,
+        `"${bill.patient_name.replace(/"/g, '""')}"`,
+        new Date(bill.date).toLocaleDateString(),
+        `"${bill.description.replace(/"/g, '""')}"`,
+        bill.amount.toFixed(2),
+        bill.status,
+        bill.uploaded_by
+      ].join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `all-bills-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Download Complete",
+      description: "All bills have been downloaded.",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Dashboard Header */}
@@ -281,6 +536,8 @@ const BillingDashboard = () => {
           </Link>
 
           <div className="flex items-center gap-4">
+            <HelpNavigation />
+            <NotificationDropdown />
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary">
                 <User className="h-5 w-5 text-primary-foreground" />
@@ -316,6 +573,14 @@ const BillingDashboard = () => {
             >
               <FileSpreadsheet className="h-5 w-5" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => downloadAllBills(bills)}
+              title="Download All Bills"
+            >
+              <FileText className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" asChild>
               <Link to="/">
                 <LogOut className="h-5 w-5" />
@@ -337,6 +602,12 @@ const BillingDashboard = () => {
               Manage patient bills and billing documents
             </p>
           </div>
+        </div>
+
+        {/* AI Assistant Tip */}
+        <div className="mb-8">
+          <ContextAssistant context="payments" title="Managing Patient Bills" />
+        </div>
           <Dialog open={isAddPatientDialogOpen} onOpenChange={setIsAddPatientDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -422,6 +693,167 @@ const BillingDashboard = () => {
                 <Button variant="hero" onClick={handleAddPatient}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Patient
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isEditPatientDialogOpen} onOpenChange={setIsEditPatientDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Patient</DialogTitle>
+                <DialogDescription>
+                  Update patient information.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editFirstName">First Name</Label>
+                    <Input
+                      id="editFirstName"
+                      placeholder="John"
+                      value={editForm.firstName}
+                      onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editLastName">Last Name</Label>
+                    <Input
+                      id="editLastName"
+                      placeholder="Doe"
+                      value={editForm.lastName}
+                      onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editEmail">Email</Label>
+                  <Input
+                    id="editEmail"
+                    type="email"
+                    placeholder="john.doe@email.com"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editPhone">Phone</Label>
+                  <Input
+                    id="editPhone"
+                    placeholder="(+63) 123-4567"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editPatientId">Patient ID</Label>
+                  <Input
+                    id="editPatientId"
+                    placeholder="PAT-004"
+                    value={editForm.patientId}
+                    onChange={(e) => setEditForm({ ...editForm, patientId: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editAdmissionDate">Admission Date</Label>
+                    <Input
+                      id="editAdmissionDate"
+                      type="date"
+                      value={editForm.admissionDate}
+                      onChange={(e) => setEditForm({ ...editForm, admissionDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editRoom">Room</Label>
+                    <Input
+                      id="editRoom"
+                      placeholder="101A"
+                      value={editForm.room}
+                      onChange={(e) => setEditForm({ ...editForm, room: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editStatus">Status</Label>
+                  <Select
+                    value={editForm.status}
+                    onValueChange={(value) => setEditForm({ ...editForm, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admitted">Admitted</SelectItem>
+                      <SelectItem value="discharged">Discharged</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditPatientDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="hero" onClick={handleEditPatient}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Update Patient
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isEditBillDialogOpen} onOpenChange={setIsEditBillDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Bill</DialogTitle>
+                <DialogDescription>
+                  Update bill information.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editBillDescription">Description</Label>
+                  <Textarea
+                    id="editBillDescription"
+                    placeholder="e.g., Emergency Room Visit, Lab Services..."
+                    value={editBillForm.description}
+                    onChange={(e) => setEditBillForm({ ...editBillForm, description: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editBillAmount">Amount (₱)</Label>
+                  <Input
+                    id="editBillAmount"
+                    type="number"
+                    placeholder="0.00"
+                    value={editBillForm.amount}
+                    onChange={(e) => setEditBillForm({ ...editBillForm, amount: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editBillStatus">Status</Label>
+                  <Select
+                    value={editBillForm.status}
+                    onValueChange={(value) => setEditBillForm({ ...editBillForm, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditBillDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="hero" onClick={handleEditBill}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Update Bill
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -585,7 +1017,7 @@ const BillingDashboard = () => {
                       </TableHeader>
                       <TableBody>
                         {bills
-                          .filter(bill => bill.patient_id === selectedPatient.patient_id)
+                          .filter(bill => bill.patient_id === selectedPatient.id)
                           .map((bill) => (
                             <TableRow key={bill.id}>
                               <TableCell className="font-medium">BILL-{bill.id.toString().padStart(3, '0')}</TableCell>
@@ -607,9 +1039,7 @@ const BillingDashboard = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
 
-        {/* Stats Cards */}
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-6">
@@ -822,17 +1252,46 @@ const BillingDashboard = () => {
                         <TableCell>₱{patient.total_billed.toFixed(2)}</TableCell>
                         <TableCell>₱{patient.pending_balance.toFixed(2)}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setUploadForm({ ...uploadForm, patientId: patient.id.toString() });
-                              setIsUploadDialogOpen(true);
-                            }}
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Bill
-                          </Button>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPatient(patient);
+                                setIsViewPatientDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(patient)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeletePatient(patient.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setUploadForm({ ...uploadForm, patientId: patient.id.toString() });
+                                setIsUploadDialogOpen(true);
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Bill
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -860,6 +1319,7 @@ const BillingDashboard = () => {
                       <TableHead>Amount</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Uploaded By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -873,6 +1333,26 @@ const BillingDashboard = () => {
                         <TableCell>₱{bill.amount.toFixed(2)}</TableCell>
                         <TableCell>{getStatusBadge(bill.status)}</TableCell>
                         <TableCell>{bill.uploaded_by}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditBillDialog(bill)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteBill(bill.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

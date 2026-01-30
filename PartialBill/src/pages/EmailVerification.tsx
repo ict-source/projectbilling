@@ -56,9 +56,13 @@ const EmailVerification = () => {
 
   useEffect(() => {
     const tokenParam = searchParams.get('token');
+    const emailParam = searchParams.get('email');
     if (tokenParam) {
       setToken(tokenParam);
       handleVerify(tokenParam);
+    }
+    if (emailParam) {
+      setEmail(emailParam);
     }
   }, [searchParams, handleVerify]);
 

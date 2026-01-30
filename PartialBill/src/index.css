@@ -111,6 +111,8 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    background-color: hsl(200 20% 98%);
+    color: hsl(200 25% 15%);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -120,14 +122,17 @@
 
 @layer utilities {
   .gradient-primary {
+    background: linear-gradient(135deg, #2a9d8f, #21867a);
     background: var(--gradient-primary);
   }
 
   .gradient-hero {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e8f4f2 100%);
     background: var(--gradient-hero);
   }
 
   .gradient-card {
+    background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
     background: var(--gradient-card);
   }
 

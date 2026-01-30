@@ -61,7 +61,7 @@ const PatientRegister = () => {
         title: "Registration Successful",
         description: result.message,
       });
-      // Don't navigate, show verification message
+      navigate(`/verify-email?email=${encodeURIComponent(formData.email)}`);
     } else {
       toast({
         title: "Registration Failed",

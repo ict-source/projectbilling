@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,6 +15,7 @@ const PatientLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { login } = useAuth();
@@ -41,6 +43,8 @@ const PatientLogin = () => {
 
     setIsLoading(false);
   };
+
+
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -75,16 +79,16 @@ const PatientLogin = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <a href="#" className="text-sm text-primary hover:underline">
+                  <Link to="/forgot-password" className="text-sm text-primary hover:underline">
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="********"
                     className="pl-10 pr-10"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -104,11 +108,24 @@ const PatientLogin = () => {
                 </div>
               </div>
 
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <Label htmlFor="remember" className="text-sm">
+                  Remember me
+                </Label>
+              </div>
+
               <Button type="submit" variant="hero" className="w-full" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </form>
+
+
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
@@ -132,8 +149,8 @@ const PatientLogin = () => {
               </div>
               <p className="mt-4 text-center text-sm text-muted-foreground">
                 Contact our billing department at{" "}
-                <a href="tel:1-800-MEDICARE" className="text-primary hover:underline">
-                  1-800-MEDICARE
+                <a href="tel:369-MEDICARE" className="text-primary hover:underline">
+                  369-MEDICARE
                 </a>
               </p>
             </div>

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Shield } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,6 +15,7 @@ const BillingLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { login, user } = useAuth();
@@ -107,6 +109,24 @@ const BillingLogin = () => {
                     )}
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <Label htmlFor="remember" className="text-sm">
+                  Remember me
+                </Label>
+              </div>
+
+               <div className="flex items-center justify-between">
+                <div></div>
+                <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                  Forgot password?
+                </Link>
               </div>
 
               <Button type="submit" variant="hero" className="w-full" disabled={isLoading}>

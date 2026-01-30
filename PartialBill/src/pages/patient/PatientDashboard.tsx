@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -12,6 +15,21 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Heart,
   FileText,
   Download,
@@ -21,12 +39,29 @@ import {
   AlertCircle,
   LogOut,
   User,
-  Bell,
-  ChevronRight
+  ChevronRight,
+  Edit,
+  Trash2,
+  FlaskConical,
+  Activity,
+  Eye,
+  Pill
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { toast } from "@/hooks/use-toast";
+import NotificationDropdown from "@/components/NotificationDropdown";
+import { ContextAssistant } from "@/components/ContextAssistant";
+import { HelpNavigation } from "@/components/HelpNavigation";
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  patient_id?: string;
+}
 
 // Types
 interface Bill {
@@ -44,6 +79,8 @@ const PatientDashboard = () => {
   const [loading, setLoading] = useState(true);
   const { user, logout } = useAuth();
 
+  const { addNotification } = useNotifications();
+
   useEffect(() => {
     const fetchBills = async () => {
       if (!user) return;
@@ -53,6 +90,24 @@ const PatientDashboard = () => {
         if (response.ok) {
           const data = await response.json();
           setBills(data);
+
+          // Check for overdue bills and notify
+          const overdueBills = data.filter((bill: Bill) => bill.status === 'overdue');
+          if (overdueBills.length > 0) {
+            addNotification(
+              `You have ${overdueBills.length} overdue bill${overdueBills.length > 1 ? 's' : ''}. Please make payment arrangements.`,
+              'warning'
+            );
+          }
+
+          // Check for new pending bills
+          const pendingBills = data.filter((bill: Bill) => bill.status === 'pending');
+          if (pendingBills.length > 0) {
+            addNotification(
+              `You have ${pendingBills.length} pending bill${pendingBills.length > 1 ? 's' : ''} awaiting payment.`,
+              'info'
+            );
+          }
         } else {
           console.error('Failed to fetch bills:', response.status);
         }
@@ -64,7 +119,7 @@ const PatientDashboard = () => {
     };
 
     fetchBills();
-  }, [user]);
+  }, [user, addNotification]);
 
   const totalBalance = bills
     .filter(b => b.status !== "paid")
@@ -80,6 +135,105 @@ const PatientDashboard = () => {
         return <Badge className="bg-destructive/10 text-destructive hover:bg-destructive/20">Overdue</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const downloadAllStatements = async (bills: Bill[], user: User | null) => {
+    if (bills.length === 0) {
+      toast({
+        title: "No Bills",
+        description: "You have no bills to download.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['Bill ID', 'Date', 'Description', 'Amount', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...bills.map(bill => [
+        `BILL-${bill.id.toString().padStart(3, '0')}`,
+        new Date(bill.date).toLocaleDateString(),
+        `"${bill.description.replace(/"/g, '""')}"`, // Escape quotes
+        bill.amount.toFixed(2),
+        bill.status
+      ].join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `billing-statements-${user?.patient_id || 'patient'}-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Log the download to Google Sheets
+    try {
+      await fetch('/api/log-download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: user?.id,
+          userName: user?.name,
+          patientId: user?.patient_id,
+          action: 'Download All Statements',
+          details: `Downloaded ${bills.length} bills as CSV`
+        })
+      });
+    } catch (error) {
+      console.error('Failed to log download:', error);
+    }
+
+    toast({
+      title: "Download Complete",
+      description: "Your billing statements have been downloaded.",
+    });
+  };
+
+  const downloadBill = async (bill: Bill) => {
+    const content = `Bill Statement
+Bill ID: BILL-${bill.id.toString().padStart(3, '0')}
+Date: ${new Date(bill.date).toLocaleDateString()}
+Description: ${bill.description}
+Amount: ₱${bill.amount.toFixed(2)}
+Status: ${bill.status}
+
+MediCare Billing Department`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bill-${bill.id}.txt`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Log the download to Google Sheets
+    try {
+      await fetch('/api/log-download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: user?.id,
+          userName: user?.name,
+          patientId: user?.patient_id,
+          action: 'Download Bill',
+          details: `Downloaded bill ${bill.id} - ${bill.description}`
+        })
+      });
+    } catch (error) {
+      console.error('Failed to log download:', error);
     }
   };
 
@@ -106,9 +260,8 @@ const PatientDashboard = () => {
           </Link>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <HelpNavigation />
+            <NotificationDropdown />
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
                 <User className="h-5 w-5 text-accent-foreground" />
@@ -135,6 +288,11 @@ const PatientDashboard = () => {
           <p className="mt-1 text-muted-foreground">
             Here's an overview of your hospital billing account.
           </p>
+        </div>
+
+        {/* AI Assistant Tip */}
+        <div className="mb-8">
+          <ContextAssistant context="account" title="Getting Started with Your Dashboard" />
         </div>
 
         {/* Stats Cards */}
@@ -250,7 +408,7 @@ const PatientDashboard = () => {
                           </p>
                           {getStatusBadge(bill.status)}
                         </div>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" onClick={() => downloadBill(bill)}>
                           <Download className="h-4 w-4" />
                         </Button>
                       </div>
@@ -260,16 +418,55 @@ const PatientDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* Hospital Departments & Prices */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Link to="/departments/laboratory" className="block">
+                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <FlaskConical className="h-5 w-5 text-blue-500" />
+                    <span className="font-medium text-sm">Laboratory Prices</span>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link to="/departments/radiology" className="block">
+                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <Activity className="h-5 w-5 text-purple-500" />
+                    <span className="font-medium text-sm">Radiology Prices</span>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link to="/departments/eye-center" className="block">
+                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <Eye className="h-5 w-5 text-green-500" />
+                    <span className="font-medium text-sm">Eye Center Prices</span>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link to="/departments/heart-center" className="block">
+                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <Heart className="h-5 w-5 text-red-500" />
+                    <span className="font-medium text-sm">Heart Center Prices</span>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link to="/departments/pharmacy" className="block">
+                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <Pill className="h-5 w-5 text-orange-500" />
+                    <span className="font-medium text-sm">Pharmacy Prices</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+
             {/* Quick Actions */}
             <div className="grid gap-4 sm:grid-cols-2">
               <Card
                 className="cursor-pointer transition-all hover:shadow-card-hover"
-                onClick={() => {
-                  toast({
-                    title: "Download Started",
-                    description: "Your billing statements are being prepared for download.",
-                  });
-                }}
+                onClick={() => downloadAllStatements(bills, user)}
               >
                 <CardContent className="flex items-center gap-4 p-6">
                   <div className="rounded-lg bg-primary/10 p-3">
@@ -332,7 +529,7 @@ const PatientDashboard = () => {
                         <TableCell>N/A</TableCell>
                         <TableCell>{getStatusBadge(bill.status)}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => downloadBill(bill)}>
                             <Download className="mr-2 h-4 w-4" />
                             Download
                           </Button>
