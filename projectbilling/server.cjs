@@ -11,7 +11,7 @@ const { google } = require('googleapis');
 const OpenAI = require('openai');
 
 const app = express();
-const PORT = 3000;
+const PORT = 8180;
 
 // Middleware
 app.use(cors());
@@ -183,14 +183,16 @@ async function backupToDrive() {
       console.log('Uploads backed up');
     }
 
-    // Share the folder with billing staff (you can set specific emails)
-    // For now, make it public or share with a domain
+    // Share the folder with the specific email
+    const shareEmail = process.env.GOOGLE_SHARE_EMAIL || 'ict@apmcaklan.com';
     await drive.permissions.create({
       fileId: folderId,
       resource: {
-        type: 'anyone',
-        role: 'reader',
+        type: 'user',
+        role: 'writer',
+        emailAddress: shareEmail
       },
+      sendNotificationEmail: true,
     });
 
     return { success: true, folderId, folderName: backupFolderName };
@@ -278,12 +280,16 @@ async function exportToSheets() {
     });
 
     // Share the spreadsheet
+    // Share the spreadsheet with the specific email
+    const shareEmail = process.env.GOOGLE_SHARE_EMAIL || 'ict@apmcaklan.com';
     await drive.permissions.create({
       fileId: spreadsheetId,
       resource: {
-        type: 'anyone',
-        role: 'reader',
+        type: 'user',
+        role: 'writer',
+        emailAddress: shareEmail
       },
+      sendNotificationEmail: true,
     });
 
     console.log('Data exported to Sheets:', spreadsheetId);

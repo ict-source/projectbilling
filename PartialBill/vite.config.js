@@ -8,10 +8,10 @@ export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? './' : '/',
   server: {
     host: "0.0.0.0",
-    port: 8000,
+    port: 9190,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:8180',
         changeOrigin: true,
       },
     },
